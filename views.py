@@ -2,7 +2,8 @@
 import sqlite3
 from functools import wraps
 
-from flask import Flask, flash, redirect, render_template, request, esssino, url_for
+from flask import Flask, flash, redirect, render_template, request, \
+session, url_for, g
 
 # config
 
@@ -19,13 +20,20 @@ def login_required(test):
     @wraps(test)
     def wrap(*args, **kwargs):
         if 'logged_in' in session:
-            return test(*arks, **kwargs)
+            return test(*args, **kwargs)
         else:
             flash('You need to login first.')
             return redirect(url_for('login'))
     return wrap
 
 # route handlers
+
+@app.route('/logout/')
+def logout():
+    session.pop('logged_in', None)
+    flash('Goodbye!')
+    return redirect(url_for('login'))
+
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -39,3 +47,22 @@ def login():
             flash('Welcome!')
             return redirect(url_for('tasks'))
     return render_template('login.html')
+
+@app.route('/tasks/')
+@login_required
+def tasks():
+    g.db = connect_db()
+    cursor = g.db.execute(
+        'SELECT name, due_date, priority, task_id from tasks where status=1'
+    )
+    open_tasks = [
+        dict(name=row[0], due_date=row[1], priority=row[2],
+            task_id=row[3]) for row in cursor.fetchall()
+    ]
+    g.db.close()
+    return render_template(
+        'tasks.html',
+        form=AddTaskForm(request.form),
+        open_tasks=open_tasks,
+        closed_tasks=closed_tasks
+    )
